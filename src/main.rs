@@ -21,6 +21,9 @@ enum Instruction {
     __Halt,
 }
 
+/// Decides what happens next with the program.
+/// This was added to make halting when taking from an empy inbox nicer.
+/// i.e. I didn't want any if-statements in the body of the big match expression.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 enum Next {
     Continue,
@@ -40,6 +43,8 @@ struct Hrm {
 }
 
 impl Hrm {
+    /// Creates a new Resource Machine with the given instructions.
+    /// Also pushes __Halt to the end
     fn new(instructions: Vec<Instruction>) -> Self {
         let mut this = Hrm::default();
         this.instructions = instructions;
@@ -47,6 +52,7 @@ impl Hrm {
         this
     }
 
+    /// Grab the next value in the inbox, halt if empty.
     fn inbox(&mut self) -> Next {
         if let Some(value) = self.inbox.pop() {
             self.current_value = value;
@@ -56,36 +62,43 @@ impl Hrm {
         }
     }
 
+    /// Deposit the currently held value into the outbox
     fn outbox(&mut self) -> Next {
         self.outbox.push(self.current_value);
 
         Next::Continue
     }
 
+    /// Makes the currently held value a copy of a location in memory
     fn copy_from(&mut self, location: Loc) -> Next {
         self.current_value = self.memory[location];
 
         Next::Continue
     }
 
+    /// Copies the currently held value to a location in memory
     fn copy_to(&mut self, location: Loc) -> Next {
         self.memory[location] = self.current_value;
 
         Next::Continue
     }
 
+    /// Adds the a value in memory to the currently held value
     fn add(&mut self, location: Loc) -> Next {
         self.current_value += self.memory[location];
 
         Next::Continue
     }
 
+    /// Subtracts a value in memory from the currently held value
     fn sub(&mut self, location: Loc) -> Next {
         self.current_value -= self.memory[location];
 
         Next::Continue
     }
 
+    /// Increments a value in memory and copies it
+    /// NB: This is known as Bump+ in the game
     fn inc(&mut self, location: Loc) -> Next {
         self.memory[location] += 1;
         self.copy_from(location);
@@ -93,6 +106,8 @@ impl Hrm {
         Next::Continue
     }
 
+    /// Decrements a value in memory and copies it
+    /// NB: This is known as Bump- in the game
     fn dec(&mut self, location: Loc) -> Next {
         self.memory[location] -= 1;
         self.copy_from(location);
@@ -100,12 +115,17 @@ impl Hrm {
         Next::Continue
     }
 
+    /// Jumps to a line number
+    /// NB: Line numbers are 1-indexed
     fn jump(&mut self, line: Line) -> Next {
+        assert!(self.current_value > 0);
         self.instruction_ptr = line;
 
         Next::Jump(line)
     }
 
+    /// Jumps to a line number if the currently held value is zero
+    /// NB: Line numbers are 1-indexed
     fn jump_if_zero(&mut self, line: Line) -> Next {
         if self.current_value == 0 {
             self.jump(line)
@@ -114,6 +134,8 @@ impl Hrm {
         }
     }
 
+    /// Jumps to a line number if the currently held value is negative
+    /// NB: Line numbers are 1-indexed
     fn jump_if_neg(&mut self, line: Line) -> Next {
         if self.current_value < 0 {
             self.jump(line)
@@ -122,6 +144,7 @@ impl Hrm {
         }
     }
 
+    /// Runs the program based on the values in the `inbox`.
     fn run(&mut self, inbox: Vec<Value>) -> Vec<Value> {
         self.inbox = inbox;
         use Instruction::*;
@@ -158,7 +181,6 @@ impl Hrm {
 fn main() {
     use Instruction::*;
     // my solution from Level 16: "Absolute Positivity"
-    // NB: Jump targets are 1-indexed to be in line with the game
     let instructions = vec![
         Inbox,
         JumpIfNeg(4),
